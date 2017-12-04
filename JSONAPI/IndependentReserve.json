@@ -1,0 +1,25 @@
+{
+  "Name": "IndependentReserve",
+  "Deposit Fee": 3.30,
+  "Trading Fee": 0.005,
+  "Commands":{
+    "BTCAUD":{
+      "TickURL":"https://api.independentreserve.com/Public/GetMarketSummary?primaryCurrencyCode=Xbt&secondaryCurrencyCode=Aud"
+    },
+    "ETHAUD":{
+      "TickURL":"https://api.independentreserve.com/Public/GetMarketSummary?primaryCurrencyCode=Eth&secondaryCurrencyCode=Aud"
+    },
+    "BCHAUD":{
+      "TickURL":"https://api.independentreserve.com/Public/GetMarketSummary?primaryCurrencyCode=Bch&secondaryCurrencyCode=Aud"
+    },
+    "AskPrice": "CurrentLowestOfferPrice",
+    "BidPrice": "CurrentHighestBidPrice",
+    "LastPrice":"LastPrice"
+  },
+  "Transfer Fees":{
+    "BTC": 	0.0006,
+    "ETH":  0.004,
+    "BCH":  0.0006
+  }
+
+}

@@ -1,0 +1,22 @@
+{
+  "Name": "Bittrex",
+  "Deposit Fee": 0.00,
+  "Trading Fee": 0.0025,
+  "Commands":{
+    "ETHBTC":{
+      "TickURL":"https://bittrex.com/api/v1.1/public/getticker?market=btc-eth"
+    },
+    "BCHBTC":{
+      "TickURL":"https://bittrex.com/api/v1.1/public/getticker?market=btc-bcc"
+    },
+    "AskPrice": "Ask",
+    "BidPrice": "Bid",
+    "LastPrice": "Last"
+  },
+  "Transfer Fees":{
+    "BTC": 	0.001,
+    "ETH":  0.002,
+    "BCH":  0.0006
+  }
+
+}

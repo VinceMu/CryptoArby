@@ -1,0 +1,25 @@
+{
+  "Name": "ACX",
+  "Deposit Fee": 0.00,
+  "Trading Fee": 0.00,
+  "Commands":{
+    "BTCAUD":{
+      "TickURL":"https://acx.io:443//api/v2/tickers/btcaud.json"
+    },
+    "ETHAUD":{
+      "TickURL":"https://acx.io:443//api/v2/tickers/ethaud.json"
+    },
+    "BCHAUD":{
+      "TickURL":"https://acx.io:443//api/v2/tickers/bchaud.json"
+    },
+    "AskPrice":"sell",
+    "BidPrice": "buy",
+    "LastPrice": "last"
+  },
+  "Transfer Fees":{
+    "BTC": 	0.0001,
+    "ETH":  0.001,
+    "BCH":  0.0001
+  }
+
+}

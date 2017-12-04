@@ -1,0 +1,22 @@
+{
+  "Name": "The Rock",
+  "Deposit Fee": 0.00,
+  "Trading Fee": 0.0020,
+  "Commands":{
+    "ETHBTC":{
+      "TickURL":"https://api.therocktrading.com/v1/funds/ETHBTC/ticker"
+    },
+    "BCHBTC":{
+      "TickURL":"https://api.therocktrading.com/v1/funds/BCHBTC/ticker"
+    },
+    "AskPrice": "ask",
+    "BidPrice": "bid",
+    "LastPrice":"last"
+  },
+  "Transfer Fees":{
+    "BTC": 	0.0005,
+    "ETH":  0.001,
+    "BCH":  0.0005
+  }
+
+}
