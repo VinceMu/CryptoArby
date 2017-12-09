@@ -3,11 +3,17 @@ import datetime
 import pandas as pd
 import numpy as np
 import threading
+from enum import  Enum
+
+class FlipperStates(Enum):
+    BUYING = 0
+    SELLING= 1
 
 class Flipper:
 
     bittrexHandler = None
     market = None
+    currentState = None
 
     BUYMARGIN = 35
     SELLMARGIN = 65
@@ -16,6 +22,7 @@ class Flipper:
     def __init__(self,Market):
         self.bittrexHandler = bittrex.Bittrex(None, None,api_version=bittrex.API_V2_0)
         self.market = Market
+        self.currentState = FlipperStates.BUYING
 
     def printAllMarkets(self):
         print(self.bittrexHandler.get_markets())
@@ -38,7 +45,7 @@ class Flipper:
         return date
 
     def calculateRSI(self,period=14):
-        rawSeries = myFlipper.getSeries(bittrex.TICKINTERVAL_HOUR)
+        rawSeries = myFlipper.getSeries(bittrex.TICKINTERVAL_THIRTYMIN)
         dataframe = myFlipper.createDataframe(rawSeries[0],rawSeries[1])
         delta = dataframe['Price'].diff().dropna()
         u = delta * 0
@@ -59,18 +66,18 @@ class Flipper:
     def decide(self):
         RSISeries = self.calculateRSI(period=14)
         rsiVal = RSISeries.iloc[-1] #get last value
-        print(type(rsiVal))
         print("Current Rsi Value is " + str(rsiVal))
-        if rsiVal < self.BUYMARGIN:
+        if rsiVal < self.BUYMARGIN and self.currentState == FlipperStates.BUYING:
             print("buy")
-        elif rsiVal > self.SELLMARGIN:
+            self.currentState = FlipperStates.SELLING
+        elif rsiVal > self.SELLMARGIN and self.currentState == FlipperStates.SELLING:
             print("sell")
+            self.currentState = FlipperStates.BUYING
         else:
             print("doing nothing")
 
-    def run(self):
-        print("starting")
-        threading.Timer(10.0, self.run).start()
+    def run(self,time=60.0):
+        threading.Timer(time, self.run).start()
         self.decide()
 
 myFlipper = Flipper("BTC-ETH")
