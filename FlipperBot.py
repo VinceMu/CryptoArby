@@ -7,25 +7,66 @@ from enum import  Enum
 
 class FlipperStates(Enum):
     BUYING = 0
-    SELLING= 1
+    SELLING = 1
+    WAITING = 2
 
 class Flipper:
 
     bittrexHandler = None
     market = None
+    currencyFrom = None
+    currencyTo = None
     currentState = None
 
     BUYMARGIN = 35
     SELLMARGIN = 65
+    TRADINGCOMMISSION = 0.0025
 
+    tradingAmount = None
+    balance = {}
 
-    def __init__(self,Market):
-        self.bittrexHandler = bittrex.Bittrex(None, None,api_version=bittrex.API_V2_0)
+    lastBought = None
+    priceBought = None
+
+    """
+    :param Market: market being traded
+    :type market: str
+    :param key: api key 
+    :type key: str
+    :param TradingAmount: unit of currency Trading in terms of the market being traded from.
+    :type TradingAmount: float 
+    """
+    def __init__(self,Market,key,TradingAmount):
+        secret = input("secret:")
+        self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=secret,api_version=bittrex.API_V2_0)
         self.market = Market
-        self.currentState = FlipperStates.BUYING
 
-    def printAllMarkets(self):
-        print(self.bittrexHandler.get_markets())
+        currencySplit = Market.split("-")
+        self.currencyFrom = currencySplit[0]
+        self.currencyTo = currencySplit[1]
+
+        self.currentState = FlipperStates.BUYING
+        self.tradingAmount = TradingAmount
+        self.balance[self.currencyFrom],self.balance[self.currencyTo] = self.getBalances()
+        self.lastBought = 0
+        print(self.balance)
+
+    def getBalances(self):
+        currencyFromResponse = self.bittrexHandler.get_balance(self.currencyFrom)
+        currencytoResponse = self.bittrexHandler.get_balance(self.currencyTo)
+        currencyFromBalance = currencyFromResponse["result"]["Balance"]
+        currencyToBalance = currencytoResponse["result"]["Balance"]
+        return currencyFromBalance,currencyToBalance
+
+    def getPrice(self):
+        if self.currentState == FlipperStates.BUYING:
+            orderBook = self.bittrexHandler.get_orderbook(market=self.market, depth_type=bittrex.SELL_ORDERBOOK)
+        elif self.currentState == FlipperStates.SELLING:
+            orderBook = self.bittrexHandler.get_orderbook(market=self.market, depth_type=bittrex.BUY_ORDERBOOK)
+        else:
+            return None
+        price = next(iter(orderBook["result"]["buy"]))["Rate"]
+        return price
 
     def getSeries(self,interval):
         candles = self.bittrexHandler.get_candles(self.market, interval)['result']
@@ -65,14 +106,22 @@ class Flipper:
 
     def decide(self):
         RSISeries = self.calculateRSI(period=14)
-        rsiVal = RSISeries.iloc[-1] #get last value
+        rsiVal = RSISeries.iloc[-1] #get current RSI Value
+
         print("Current Rsi Value is " + str(rsiVal))
+
         if rsiVal < self.BUYMARGIN and self.currentState == FlipperStates.BUYING:
-            print("buy")
-            self.currentState = FlipperStates.SELLING
+            self.priceBought = self.getPrice()
+            amountToBuy = self.tradingAmount / self.priceBought * self.TRADINGCOMMISSION #amount of currencyTo to buy
+            self.lastBought = amountToBuy
+            print("selling  " + str(amountToBuy) + " " + self.currencyTo)
+
         elif rsiVal > self.SELLMARGIN and self.currentState == FlipperStates.SELLING:
             print("sell")
-            self.currentState = FlipperStates.BUYING
+            priceToSell  = self.getPrice()
+            amountToSell = self.lastBought * (self.priceBought/priceToSell) #amount of currencyto To sell
+            print("selling  " + str(amountToSell) + " " + self.currencyTo)
+
         else:
             print("doing nothing")
 
@@ -80,5 +129,11 @@ class Flipper:
         threading.Timer(time, self.run).start()
         self.decide()
 
-myFlipper = Flipper("BTC-ETH")
-myFlipper.run()
+    def check(self):
+        pass
+
+myFlipper = Flipper("BTC-POWR","f9e36fd45e184e3c8801188dd93c4628",0.001)
+BTC,POWR = myFlipper.getBalances()
+print("BTC " + str('{:.8f}'.format(BTC)) + " POWR " + str('{:.8f}'.format(POWR)))
+print(myFlipper.bittrexHandler.get_orderbook(market=myFlipper.market, depth_type=bittrex.BUY_ORDERBOOK))
+print(myFlipper.bittrexHandler.get_orderbook(market=myFlipper.market, depth_type=bittrex.SELL_ORDERBOOK))
