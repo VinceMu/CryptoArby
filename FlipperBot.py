@@ -3,7 +3,9 @@ import datetime
 import pandas as pd
 import numpy as np
 import threading
-from enum import  Enum
+import logging
+from enum import Enum
+
 
 class FlipperStates(Enum):
     BUYING = 0
@@ -24,6 +26,7 @@ class Flipper:
 
     tradingAmount = None
     balance = {}
+    myLogger = None
 
     lastBought = None
     priceBought = None
@@ -40,6 +43,14 @@ class Flipper:
         secret = input("secret:")
         self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=secret,api_version=bittrex.API_V2_0)
         self.market = Market
+
+
+        self.myLogger = logging.getLogger(Market + " Log")
+        fileHandler = logging.FileHandler(Market + " Log.txt")
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        fileHandler.setFormatter(formatter)
+        self.myLogger.addHandler(fileHandler)
+        self.myLogger.setLevel(logging.NOTSET)
 
         currencySplit = Market.split("-")
         self.currencyFrom = currencySplit[0]
@@ -86,7 +97,7 @@ class Flipper:
         return date
 
     def calculateRSI(self,period=14):
-        rawSeries = myFlipper.getSeries(bittrex.TICKINTERVAL_THIRTYMIN)
+        rawSeries = myFlipper.getSeries(bittrex.TICKINTERVAL_ONEMIN)
         dataframe = myFlipper.createDataframe(rawSeries[0],rawSeries[1])
         delta = dataframe['Price'].diff().dropna()
         u = delta * 0
@@ -101,39 +112,37 @@ class Flipper:
         #     pd.stats.moments.ewma(d, com=period - 1, adjust=False)
         rs = u.ewm(com = period-1, min_periods=0,adjust=False,ignore_na=False).mean()/ \
              d.ewm(com=period - 1, min_periods=0, adjust=False, ignore_na=False).mean()
-        print(100 - 100 / (1 + rs))
         return 100 - 100 / (1 + rs)
 
     def decide(self):
         RSISeries = self.calculateRSI(period=14)
         rsiVal = RSISeries.iloc[-1] #get current RSI Value
 
+        self.myLogger.warning("Current Rsi Value is " + str(rsiVal))
         print("Current Rsi Value is " + str(rsiVal))
-
         if rsiVal < self.BUYMARGIN and self.currentState == FlipperStates.BUYING:
             self.priceBought = self.getPrice()
             amountToBuy = self.tradingAmount / self.priceBought * self.TRADINGCOMMISSION #amount of currencyTo to buy
             self.lastBought = amountToBuy
-            print("selling  " + str(amountToBuy) + " " + self.currencyTo)
+            self.myLogger.warning("Buying  " + str(amountToBuy) + " " + self.currencyTo)
+            self.currentState = FlipperStates.SELLING
 
         elif rsiVal > self.SELLMARGIN and self.currentState == FlipperStates.SELLING:
-            print("sell")
             priceToSell  = self.getPrice()
             amountToSell = self.lastBought * (self.priceBought/priceToSell) #amount of currencyto To sell
-            print("selling  " + str(amountToSell) + " " + self.currencyTo)
+            self.myLogger.warning("selling  " + str(amountToSell) + " " + self.currencyTo)
+            self.currentState = FlipperStates.BUYING
 
         else:
             print("doing nothing")
+            self.myLogger.warning("doing nothing")
 
     def run(self,time=60.0):
         threading.Timer(time, self.run).start()
         self.decide()
 
-    def check(self):
-        pass
+    def checkBalance(self):
+        self.balance[self.currencyFrom], self.balance[self.currencyTo] = self.getBalances()
 
 myFlipper = Flipper("BTC-POWR","f9e36fd45e184e3c8801188dd93c4628",0.001)
-BTC,POWR = myFlipper.getBalances()
-print("BTC " + str('{:.8f}'.format(BTC)) + " POWR " + str('{:.8f}'.format(POWR)))
-print(myFlipper.bittrexHandler.get_orderbook(market=myFlipper.market, depth_type=bittrex.BUY_ORDERBOOK))
-print(myFlipper.bittrexHandler.get_orderbook(market=myFlipper.market, depth_type=bittrex.SELL_ORDERBOOK))
+myFlipper.run(time=60.0)
