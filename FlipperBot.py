@@ -141,6 +141,20 @@ class Flipper:
         threading.Timer(time, self.run).start()
         self.decide()
 
+    def buy(self,amount):
+        self.bittrexHandler.trade_buy(market=self.market,
+                                      quantity=amount,
+                                      order_type=bittrex.ORDERTYPE_MARKET,
+                                      time_in_effect=bittrex.TIMEINEFFECT_GOOD_TIL_CANCELLED,
+                                      condition_type=bittrex.CONDITIONTYPE_NONE)
+
+    def sell(self,amount):
+        self.bittrexHandler.trade_sell(market=self.market,
+                                      quantity=amount,
+                                      order_type=bittrex.ORDERTYPE_MARKET,
+                                      time_in_effect=bittrex.TIMEINEFFECT_GOOD_TIL_CANCELLED,
+                                      condition_type=bittrex.CONDITIONTYPE_NONE)
+
     def checkBalance(self):
         self.balance[self.currencyFrom], self.balance[self.currencyTo] = self.getBalances()
 

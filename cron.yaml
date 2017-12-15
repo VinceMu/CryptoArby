@@ -1,0 +1,4 @@
+cron:
+- description: FlipperBot
+  url: /
+  schedule: every 24 hours
