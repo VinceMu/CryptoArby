@@ -18,18 +18,24 @@ class Flipper:
     market = None
     currencyFrom = None
     currencyTo = None
+
     currentState = None
 
-    BUYMARGIN = 35
-    SELLMARGIN = 65
+    BUYMARGIN = None
+    SELLMARGIN = None
     TRADINGCOMMISSION = 0.0025
+    MINIMUMTRADE = 0.001
+    PRICEMULTIPLIER = 1.006
 
     tradingAmount = None
-    balance = {}
+    #balance = {}
     myLogger = None
 
     lastBought = None
     priceBought = None
+
+    key = None
+    secret = None
 
     """
     :param Market: market being traded
@@ -39,11 +45,18 @@ class Flipper:
     :param TradingAmount: unit of currency Trading in terms of the market being traded from.
     :type TradingAmount: float 
     """
-    def __init__(self,Market,key,TradingAmount):
-        secret = input("secret:")
-        self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=secret,api_version=bittrex.API_V2_0)
+    def __init__(self,Market,key,TradingAmount,BuyMargin=40.00,SellMargin=60.00):
+        if TradingAmount < self.MINIMUMTRADE:
+            raise ValueError("smaller than minimum trade size " + str(self.MINIMUMTRADE))
+            exit(1)
+
+        self.secret = input("secret:")
+        self.key = key
+        self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=self.secret,api_version=bittrex.API_V2_0)
         self.market = Market
 
+        self.BUYMARGIN = BuyMargin
+        self.SELLMARGIN = SellMargin
 
         self.myLogger = logging.getLogger(Market + " Log")
         fileHandler = logging.FileHandler(Market + " Log.txt")
@@ -58,9 +71,9 @@ class Flipper:
 
         self.currentState = FlipperStates.BUYING
         self.tradingAmount = TradingAmount
-        self.balance[self.currencyFrom],self.balance[self.currencyTo] = self.getBalances()
+        #self.balance[self.currencyFrom],self.balance[self.currencyTo] = self.getBalances()
         self.lastBought = 0
-        print(self.balance)
+        #print(self.balance)
 
     def getBalances(self):
         currencyFromResponse = self.bittrexHandler.get_balance(self.currencyFrom)
@@ -69,13 +82,12 @@ class Flipper:
         currencyToBalance = currencytoResponse["result"]["Balance"]
         return currencyFromBalance,currencyToBalance
 
-    def getPrice(self):
-        if self.currentState == FlipperStates.BUYING:
+    def getPrice(self,ordertype):
+        orderBook = None
+        if ordertype == "BUYING":
             orderBook = self.bittrexHandler.get_orderbook(market=self.market, depth_type=bittrex.SELL_ORDERBOOK)
-        elif self.currentState == FlipperStates.SELLING:
+        elif ordertype == "SELLING":
             orderBook = self.bittrexHandler.get_orderbook(market=self.market, depth_type=bittrex.BUY_ORDERBOOK)
-        else:
-            return None
         price = next(iter(orderBook["result"]["buy"]))["Rate"]
         return price
 
@@ -92,10 +104,6 @@ class Flipper:
         dataFrame = pd.DataFrame({'Price':prices,'Date':times})
         return dataFrame
 
-    def getDateandTimeIso(self):
-        date = datetime.date.isoformat()
-        return date
-
     def calculateRSI(self,period=14):
         rawSeries = myFlipper.getSeries(bittrex.TICKINTERVAL_ONEMIN)
         dataframe = myFlipper.createDataframe(rawSeries[0],rawSeries[1])
@@ -108,29 +116,38 @@ class Flipper:
         u = u.drop(u.index[:(period - 1)])
         d[d.index[period - 1]] = np.mean(d[:period])  # first value is sum of avg losses
         d = d.drop(d.index[:(period - 1)])
-       # rs = pd.stats.moments.ewma(u, com=period - 1, adjust=False) / \
-        #     pd.stats.moments.ewma(d, com=period - 1, adjust=False)
         rs = u.ewm(com = period-1, min_periods=0,adjust=False,ignore_na=False).mean()/ \
              d.ewm(com=period - 1, min_periods=0, adjust=False, ignore_na=False).mean()
         return 100 - 100 / (1 + rs)
 
     def decide(self):
+
+        if self.isOrderComplete() is False:
+            self.myLogger.warning("Waiting for Order to be filled")
+            print("waiting for Order")
+            return
+
         RSISeries = self.calculateRSI(period=14)
         rsiVal = RSISeries.iloc[-1] #get current RSI Value
 
         self.myLogger.warning("Current Rsi Value is " + str(rsiVal))
         print("Current Rsi Value is " + str(rsiVal))
+
+
         if rsiVal < self.BUYMARGIN and self.currentState == FlipperStates.BUYING:
-            self.priceBought = self.getPrice()
-            amountToBuy = self.tradingAmount / self.priceBought * self.TRADINGCOMMISSION #amount of currencyTo to buy
-            self.lastBought = amountToBuy
+            self.priceBought = self.getPrice("BUYING") * self.PRICEMULTIPLIER
+            amountToBuy = self.tradingAmount / self.priceBought  #amount of currencyTo to buy
+            self.lastBought = amountToBuy * (1-self.TRADINGCOMMISSION)
+            self.buy(amountToBuy)
             self.myLogger.warning("Buying  " + str(amountToBuy) + " " + self.currencyTo)
+            print("Buying  " + str(amountToBuy) + " " + self.currencyTo)
             self.currentState = FlipperStates.SELLING
 
         elif rsiVal > self.SELLMARGIN and self.currentState == FlipperStates.SELLING:
-            priceToSell  = self.getPrice()
-            amountToSell = self.lastBought * (self.priceBought/priceToSell) #amount of currencyto To sell
+            amountToSell = self.lastBought
+            self.sell(amountToSell)
             self.myLogger.warning("selling  " + str(amountToSell) + " " + self.currencyTo)
+            print("selling  " + str(amountToSell) + " " + self.currencyTo)
             self.currentState = FlipperStates.BUYING
 
         else:
@@ -142,21 +159,33 @@ class Flipper:
         self.decide()
 
     def buy(self,amount):
-        self.bittrexHandler.trade_buy(market=self.market,
+        """self.bittrexHandler.trade_buy(market=self.market,
                                       quantity=amount,
                                       order_type=bittrex.ORDERTYPE_MARKET,
                                       time_in_effect=bittrex.TIMEINEFFECT_GOOD_TIL_CANCELLED,
-                                      condition_type=bittrex.CONDITIONTYPE_NONE)
+                                      condition_type=bittrex.CONDITIONTYPE_NONE) - not working cos API 2 is bugged!"""
+
+        buyHandler = bittrex.Bittrex(api_key=self.key, api_secret=self.secret,api_version=bittrex.API_V1_1)
+        response = buyHandler.buy_limit(self.market, amount,self.getPrice(ordertype="BUYING"))
+        return response
 
     def sell(self,amount):
-        self.bittrexHandler.trade_sell(market=self.market,
+        """self.bittrexHandler.trade_sell(market=self.market,
                                       quantity=amount,
                                       order_type=bittrex.ORDERTYPE_MARKET,
                                       time_in_effect=bittrex.TIMEINEFFECT_GOOD_TIL_CANCELLED,
-                                      condition_type=bittrex.CONDITIONTYPE_NONE)
+                                      condition_type=bittrex.CONDITIONTYPE_NONE) - not working cos API 2 is bugged!"""
+        sellHandler = bittrex.Bittrex(api_key=self.key, api_secret=self.secret, api_version=bittrex.API_V1_1)
+        response = sellHandler.sell_limit(self.market, amount, self.getPrice(ordertype="SELLING"))
+        return response
 
-    def checkBalance(self):
-        self.balance[self.currencyFrom], self.balance[self.currencyTo] = self.getBalances()
 
-myFlipper = Flipper("BTC-POWR","f9e36fd45e184e3c8801188dd93c4628",0.001)
+    def isOrderComplete(self):
+        openOrders = self.bittrexHandler.get_open_orders(self.market)
+        if not openOrders['result']:
+            return True
+        else:
+            return False
+
+myFlipper = Flipper("BTC-ZEC","f9e36fd45e184e3c8801188dd93c4628",0.001,BuyMargin=40,SellMargin=60)
 myFlipper.run(time=60.0)

@@ -1,8 +1,11 @@
 application: cryptobot-189001
 version: 1
-runtime: python36
+runtime: python
 api_version: 1
 threadsafe: false
+
+runtime_config:
+    python_version: 3
 
 handlers:
 - url: /
