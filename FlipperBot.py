@@ -179,6 +179,16 @@ class Flipper:
         response = sellHandler.sell_limit(self.market, amount, self.getPrice(ordertype="SELLING"))
         return response
 
+    """
+    returns the market logfile as a string
+    """
+    def getLog(self):
+        try:
+            file = open(self.market + ".txt", 'r')
+            return file.read()
+        except(IOError):
+            return str(IOError)
+
 
     def isOrderComplete(self):
         openOrders = self.bittrexHandler.get_open_orders(self.market)

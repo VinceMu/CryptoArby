@@ -1,4 +1,4 @@
 cron:
 - description: FlipperBot
-  url: /
-  schedule: every 2 minutes
+  url: /tasks/run
+  schedule: every 24 hours
