@@ -1,7 +1,7 @@
 colorama==0.3.9
-comtypes==1.1.2
 decorator==4.1.2
 Flask==0.12.2
+gunicorn==19.7.1
 Flask-Cors==3.0.3
 gevent==1.2.2
 glob2==0.5
@@ -16,7 +16,7 @@ numba==0.35.0+10.g143f70e
 numexpr==2.6.2
 numpy==1.13.3
 numpydoc==0.7.0
-odo==0.5.1
+odo==0.5.2
 pandas==0.20.3
 path.py==10.3.1
 pep8==1.7.0
@@ -33,7 +33,6 @@ PySocks==1.6.7
 pytest==3.2.1
 python-bittrex==0.2.1
 python-dateutil==2.6.1
-pywin32==221
 PyYAML==3.12
 requests==2.18.4
 scikit-image==0.13.0
