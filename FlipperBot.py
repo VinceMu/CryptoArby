@@ -4,8 +4,41 @@ import pandas as pd
 import numpy as np
 import threading
 import logging
+import os
+import json
 from enum import Enum
 
+
+def getSeries(bittrex_candles):
+    candles = bittrex_candles
+    closePrices = []
+    times = []
+    for candleSet in candles:
+        closePrices.append(candleSet['C'])
+        times.append(candleSet['T'])
+    return closePrices, times
+
+
+def createDataframe( prices, times):
+    dataFrame = pd.DataFrame({'Price': prices, 'Date': times})
+    return dataFrame
+
+
+def calculateRSI(bittrexCandles, period=14):
+    rawSeries = getSeries(bittrexCandles)
+    dataframe = createDataframe(rawSeries[0], rawSeries[1])
+    delta = dataframe['Price'].diff().dropna()
+    u = delta * 0
+    d = u.copy()
+    u[delta > 0] = delta[delta > 0]
+    d[delta < 0] = -delta[delta < 0]
+    u[u.index[period - 1]] = np.mean(u[:period])  # first value is sum of avg gains
+    u = u.drop(u.index[:(period - 1)])
+    d[d.index[period - 1]] = np.mean(d[:period])  # first value is sum of avg losses
+    d = d.drop(d.index[:(period - 1)])
+    rs = u.ewm(com=period - 1, min_periods=0, adjust=False, ignore_na=False).mean() / \
+         d.ewm(com=period - 1, min_periods=0, adjust=False, ignore_na=False).mean()
+    return 100 - 100 / (1 + rs)
 
 class FlipperStates(Enum):
     BUYING = 0
@@ -48,7 +81,6 @@ class Flipper:
     def __init__(self,Market,key,TradingAmount,BuyMargin=40.00,SellMargin=60.00):
         if TradingAmount < self.MINIMUMTRADE:
             raise ValueError("smaller than minimum trade size " + str(self.MINIMUMTRADE))
-            exit(1)
 
         self.secret = input("secret:")
         self.key = key
@@ -91,34 +123,7 @@ class Flipper:
         price = next(iter(orderBook["result"]["buy"]))["Rate"]
         return price
 
-    def getSeries(self,interval):
-        candles = self.bittrexHandler.get_candles(self.market, interval)['result']
-        closePrices = []
-        times = []
-        for candleSet in candles:
-            closePrices.append(candleSet['C'])
-            times.append(candleSet['T'])
-        return closePrices,times
 
-    def createDataframe(self,prices,times):
-        dataFrame = pd.DataFrame({'Price':prices,'Date':times})
-        return dataFrame
-
-    def calculateRSI(self,period=14):
-        rawSeries = myFlipper.getSeries(bittrex.TICKINTERVAL_ONEMIN)
-        dataframe = myFlipper.createDataframe(rawSeries[0],rawSeries[1])
-        delta = dataframe['Price'].diff().dropna()
-        u = delta * 0
-        d = u.copy()
-        u[delta > 0] = delta[delta > 0]
-        d[delta < 0] = -delta[delta < 0]
-        u[u.index[period - 1]] = np.mean(u[:period])  # first value is sum of avg gains
-        u = u.drop(u.index[:(period - 1)])
-        d[d.index[period - 1]] = np.mean(d[:period])  # first value is sum of avg losses
-        d = d.drop(d.index[:(period - 1)])
-        rs = u.ewm(com = period-1, min_periods=0,adjust=False,ignore_na=False).mean()/ \
-             d.ewm(com=period - 1, min_periods=0, adjust=False, ignore_na=False).mean()
-        return 100 - 100 / (1 + rs)
 
     def decide(self):
 
@@ -127,7 +132,7 @@ class Flipper:
             print("waiting for Order")
             return
 
-        RSISeries = self.calculateRSI(period=14)
+        RSISeries = calculateRSI(self.bittrexHandler.get_candles(self.market, bittrex.TICKINTERVAL_FIVEMIN)['result'],period=14)
         rsiVal = RSISeries.iloc[-1] #get current RSI Value
 
         self.myLogger.warning("Current Rsi Value is " + str(rsiVal))
@@ -197,5 +202,148 @@ class Flipper:
         else:
             return False
 
-myFlipper = Flipper("BTC-ZEC","f9e36fd45e184e3c8801188dd93c4628",0.001,BuyMargin=40,SellMargin=60)
-myFlipper.run(time=60.0)
+class FlipperV2:
+
+    JSONSTATE_NAME = "state.Json"
+    stateJson = None
+    currentState = None
+    previousState = None
+
+    BUYMARGIN = None
+    SELLMARGIN = None
+    TRADINGCOMMISSION = 0.0025
+    MINIMUMTRADE = 0.001
+    PRICEMULTIPLIER = 1.006
+
+    tradingAmount = None
+    myLogger = None
+
+    priceBought = None
+
+    key = None
+    secret = None
+
+    def __init__(self,Market,key,TradingAmount,BuyMargin=40.00,SellMargin=60.00):
+        if TradingAmount < self.MINIMUMTRADE:
+            raise ValueError("smaller than minimum trade size " + str(self.MINIMUMTRADE))
+
+        self.secret = input("secret:")
+        self.key = key
+        self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=self.secret,api_version=bittrex.API_V2_0)
+        self.market = Market #must be valid bittrex market
+        self.BUYMARGIN = BuyMargin
+        self.SELLMARGIN = SellMargin
+
+        currencySplit = Market.split("-")
+        self.currencyFrom = currencySplit[0]
+        self.currencyTo = currencySplit[1]
+        self.tradingAmount = TradingAmount
+
+        self.loadState()
+
+        self.myLogger = logging.getLogger(Market + " Log")
+        fileHandler = logging.FileHandler(Market + " Log.txt")
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        fileHandler.setFormatter(formatter)
+        self.myLogger.addHandler(fileHandler)
+        self.myLogger.setLevel(logging.NOTSET)
+
+
+    def loadState(self):
+        if os.path.isfile(self.JSONSTATE_NAME):
+            with open(self.JSONSTATE_NAME) as stateJson:
+                stateData = json.load(stateJson)
+                self.currentState = stateData["state"]
+                self.priceBought = stateData["lastBought"]
+                self.previousState = stateData["previousState"]
+        else:
+            self.currentState = FlipperStates.BUYING
+            self.priceBought = None
+            self.previousState = None
+            self.writeStateJson()
+
+    def writeStateJson(self):
+        jsonData = {"state":str(self.currentState), "previousState":str(self.previousState),"lastBought":self.priceBought}
+        with open(self.JSONSTATE_NAME,'w') as jsonFile:
+            json.dump(jsonData,jsonFile)
+
+
+
+    def getPrice(self,ordertype):
+        orderBook = None
+        if ordertype == "BUYING":
+            orderBook = self.bittrexHandler.get_orderbook(market=self.market, depth_type=bittrex.SELL_ORDERBOOK)
+        elif ordertype == "SELLING":
+            orderBook = self.bittrexHandler.get_orderbook(market=self.market, depth_type=bittrex.BUY_ORDERBOOK)
+        price = next(iter(orderBook["result"]["buy"]))["Rate"]
+        return price
+
+    def run(self):
+        RSISeries = calculateRSI(self.bittrexHandler.get_candles(self.market, bittrex.TICKINTERVAL_FIVEMIN)['result'],period=14)
+        rsiVal = RSISeries.iloc[-1]
+        self.myLogger.warning("RSI Value is " + str(rsiVal))
+
+        if self.currentState == FlipperStates.BUYING:
+            if rsiVal < self.BUYMARGIN:
+                self.priceBought = self.getPrice("BUYING") * self.PRICEMULTIPLIER
+                amountToBuy = self.tradingAmount / self.priceBought
+                self.lastBought = amountToBuy * (1 - self.TRADINGCOMMISSION)
+                self.buy(amountToBuy)
+                self.previousState = FlipperStates.BUYING
+                self.currentState = FlipperStates.WAITING
+                self.myLogger.warning("Buying  " + str(amountToBuy) + " " + self.currencyTo)
+
+        elif self.currentState == FlipperStates.SELLING:
+            if rsiVal > self.SELLMARGIN:
+                amountToSell = self.lastBought
+                self.sell(amountToSell)
+                self.currentState = FlipperStates.WAITING
+                self.previousState = FlipperStates.SELLING
+                self.myLogger.warning("selling  " + str(amountToSell) + " " + self.currencyTo)
+
+
+        elif self.currentState == FlipperStates.WAITING:
+            if self.isOrderComplete() is True:
+                if self.previousState == FlipperStates.BUYING:
+                    self.currentState = FlipperStates.SELLING
+                    self.previousState = FlipperStates.WAITING
+                elif self.previousState == FlipperStates.SELLING:
+                    self.currentState = FlipperStates.BUYING
+                    self.previousState = FlipperStates.WAITING
+            self.myLogger.warning("waiting")
+
+        self.writeStateJson()
+
+    def buy(self,amount):
+        buyHandler = bittrex.Bittrex(api_key=self.key, api_secret=self.secret,api_version=bittrex.API_V1_1)
+        response = buyHandler.buy_limit(self.market, amount,self.getPrice(ordertype="BUYING"))
+        return response
+
+    def sell(self,amount):
+        sellHandler = bittrex.Bittrex(api_key=self.key, api_secret=self.secret, api_version=bittrex.API_V1_1)
+        response = sellHandler.sell_limit(self.market, amount, self.getPrice(ordertype="SELLING"))
+        return response
+
+    def isOrderComplete(self):
+        openOrders = self.bittrexHandler.get_open_orders(self.market)
+        if not openOrders['result']:
+            return True
+        else:
+            return False
+
+
+myFlipper = FlipperV2("BTC-ZEC","f9e36fd45e184e3c8801188dd93c4628",0.001,BuyMargin=350,SellMargin=65)
+myFlipper.run()
+
+
+"""
+    state json file structure
+{
+    state:currState
+    previousState: prevState
+    lastBought:lastBoughtPrice
+    
+}
+
+
+"""
