@@ -8,7 +8,7 @@ market = "BTC-XLM"
 @app.route('/')
 def show():
     if os.path.isfile(market + " Log.txt"):
-        with open(market + "Log.txt", 'r') as myfile:
+        with open(market + " Log.txt", 'r') as myfile:
             text = myfile.read()
             return text.replace('\n', '<br>')
     else:

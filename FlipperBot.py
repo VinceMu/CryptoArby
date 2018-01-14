@@ -70,7 +70,7 @@ class FlipperV2:
         if TradingAmount < self.MINIMUMTRADE:
             raise ValueError("smaller than minimum trade size " + str(self.MINIMUMTRADE))
 
-        self.secret = "insert secret here"
+        self.secret = "insert secret here!"
         self.key = key
         self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=self.secret,api_version=bittrex.API_V2_0)
         self.market = Market #must be valid bittrex market
@@ -83,12 +83,13 @@ class FlipperV2:
         self.tradingAmount = TradingAmount
 
         self.loadState()
-
         self.myLogger = logging.getLogger(Market + " Log")
-        fileHandler = logging.FileHandler(Market + " Log.txt")
-        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-        fileHandler.setFormatter(formatter)
-        self.myLogger.addHandler(fileHandler)
+
+        if not self.myLogger.handlers :
+            fileHandler = logging.FileHandler(Market + " Log.txt")
+            formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+            fileHandler.setFormatter(formatter)
+            self.myLogger.addHandler(fileHandler)
         self.myLogger.setLevel(logging.NOTSET)
 
 
