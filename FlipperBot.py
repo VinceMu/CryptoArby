@@ -58,6 +58,7 @@ class FlipperV2:
     myLogger = None
 
     priceBought = None
+    amountBought = None
 
     key = None
     secret = None
@@ -70,7 +71,7 @@ class FlipperV2:
         if TradingAmount < self.MINIMUMTRADE:
             raise ValueError("smaller than minimum trade size " + str(self.MINIMUMTRADE))
 
-        self.secret = "insert secret here!"
+        self.secret = "insert secret here! "
         self.key = key
         self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=self.secret,api_version=bittrex.API_V2_0)
         self.market = Market #must be valid bittrex market
@@ -100,14 +101,20 @@ class FlipperV2:
                 self.currentState = stateData["state"]
                 self.priceBought = stateData["lastBought"]
                 self.previousState = stateData["previousState"]
+                self.amountBought = stateData["amountBought"]
         else:
             self.currentState = self.BUYINGSTATE
             self.priceBought = None
             self.previousState = None
+            self.amountBought = None
             self.writeStateJson()
 
     def writeStateJson(self):
-        jsonData = {"state":self.currentState, "previousState":self.previousState,"lastBought":self.priceBought}
+        jsonData = {"state": self.currentState,
+                    "previousState": self.previousState,
+                    "lastBought": self.priceBought,
+                    "amountBought": self.amountBought}
+
         with open(self.JSONSTATE_NAME,'w') as jsonFile:
             json.dump(jsonData,jsonFile)
 
@@ -130,16 +137,15 @@ class FlipperV2:
         if self.currentState == self.BUYINGSTATE:
             if rsiVal < self.BUYMARGIN:
                 self.priceBought = self.getPrice("BUYING") * self.PRICEMULTIPLIER
-                amountToBuy = self.tradingAmount / self.priceBought
-                self.lastBought = amountToBuy * (1 - self.TRADINGCOMMISSION)
-                self.buy(amountToBuy)
+                self.amountBought = self.tradingAmount / self.priceBought
+                self.buy(self.amountBought)
                 self.currentState = self.WAITINGSTATE
                 self.previousState = self.BUYINGSTATE
-                self.myLogger.warning("Buying  " + str(amountToBuy) + " " + self.currencyTo)
+                self.myLogger.warning("Buying  " + str(self.amountBought) + " " + self.currencyTo)
 
         elif self.currentState == self.SELLINGSTATE:
             if rsiVal > self.SELLMARGIN:
-                amountToSell = self.lastBought
+                amountToSell = self.amountBought
                 self.sell(amountToSell)
                 self.currentState = self.WAITINGSTATE
                 self.previousState = self.SELLINGSTATE
@@ -182,7 +188,9 @@ class FlipperV2:
 {
     state:currState
     previousState: prevState
-    lastBought:lastBoughtPrice
+    lastBought: price currency bought at
+    amountBought:amount of currency bought
+    
     
 }
 
