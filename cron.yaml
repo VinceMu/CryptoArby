@@ -1,4 +1,10 @@
 cron:
-- description: FlipperBot
-  url: /tasks/run
+- description: FlipperBot1
+  url: /tasks/run1
+  schedule: every 5 minutes
+- description: FlipperBot2
+  url: /tasks/run2
+  schedule: every 5 minutes
+- description: FlipperBot3
+  url: /tasks/run3
   schedule: every 5 minutes
