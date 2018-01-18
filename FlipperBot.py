@@ -71,7 +71,7 @@ class FlipperV2:
         if TradingAmount < self.MINIMUMTRADE:
             raise ValueError("smaller than minimum trade size " + str(self.MINIMUMTRADE))
 
-        self.secret = "48fbc489dacf4e21ae9ca9cc2bbbb697"
+        self.secret = "none"
         self.key = key
         self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=self.secret,api_version=bittrex.API_V2_0)
         self.market = Market #must be valid bittrex market
