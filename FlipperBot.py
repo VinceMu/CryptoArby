@@ -43,7 +43,7 @@ def calculateRSI(bittrexCandles, period=14):
 
 class FlipperV2:
 
-    JSONSTATE_NAME = "state.Json"
+    JSONSTATE_NAME = None
     stateJson = None
     currentState = None
     previousState = None
@@ -71,7 +71,7 @@ class FlipperV2:
         if TradingAmount < self.MINIMUMTRADE:
             raise ValueError("smaller than minimum trade size " + str(self.MINIMUMTRADE))
 
-        self.secret = "insert secret here! "
+        self.secret = "48fbc489dacf4e21ae9ca9cc2bbbb697"
         self.key = key
         self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=self.secret,api_version=bittrex.API_V2_0)
         self.market = Market #must be valid bittrex market
@@ -82,11 +82,12 @@ class FlipperV2:
         self.currencyFrom = currencySplit[0]
         self.currencyTo = currencySplit[1]
         self.tradingAmount = TradingAmount
+        self.JSONSTATE_NAME = Market + "-state.json"
 
         self.loadState()
         self.myLogger = logging.getLogger(Market + " Log")
 
-        if not self.myLogger.handlers :
+        if not self.myLogger.handlers:
             fileHandler = logging.FileHandler(Market + " Log.txt")
             formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
             fileHandler.setFormatter(formatter)
