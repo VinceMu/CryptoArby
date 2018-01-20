@@ -52,11 +52,11 @@ class FlipperV2:
     SELLMARGIN = None
     TRADINGCOMMISSION = 0.0025
     MINIMUMTRADE = 0.001
-    PRICEMULTIPLIER = 1.006
+    PRICEMULTIPLIER = 1.005
 
     tradingAmount = None
     myLogger = None
-
+    market = None
     priceBought = None
     amountBought = None
 
@@ -71,7 +71,7 @@ class FlipperV2:
         if TradingAmount < self.MINIMUMTRADE:
             raise ValueError("smaller than minimum trade size " + str(self.MINIMUMTRADE))
 
-        self.secret = "none"
+        self.secret = "insert here!"
         self.key = key
         self.bittrexHandler = bittrex.Bittrex(api_key=key, api_secret=self.secret,api_version=bittrex.API_V2_0)
         self.market = Market #must be valid bittrex market
@@ -127,6 +127,11 @@ class FlipperV2:
             orderBook = self.bittrexHandler.get_orderbook(market=self.market, depth_type=bittrex.SELL_ORDERBOOK)
         elif ordertype == "SELLING":
             orderBook = self.bittrexHandler.get_orderbook(market=self.market, depth_type=bittrex.BUY_ORDERBOOK)
+        elif ordertype == "LASTPRICE":
+            response = self.bittrexHandler.get_latest_candle(market=self.market, tick_interval=bittrex.TICKINTERVAL_ONEMIN)
+            lastPrice = response['result'][0]['C']
+            return lastPrice
+
         price = next(iter(orderBook["result"]["buy"]))["Rate"]
         return price
 
@@ -137,7 +142,7 @@ class FlipperV2:
 
         if self.currentState == self.BUYINGSTATE:
             if rsiVal < self.BUYMARGIN:
-                self.priceBought = self.getPrice("BUYING") * self.PRICEMULTIPLIER
+                self.priceBought = self.getPrice("LASTPRICE") * self.PRICEMULTIPLIER
                 self.amountBought = self.tradingAmount / self.priceBought
                 self.buy(self.amountBought)
                 self.currentState = self.WAITINGSTATE
@@ -145,7 +150,7 @@ class FlipperV2:
                 self.myLogger.warning("Buying  " + str(self.amountBought) + " " + self.currencyTo)
 
         elif self.currentState == self.SELLINGSTATE:
-            if rsiVal > self.SELLMARGIN:
+            if rsiVal > self.SELLMARGIN and self.getPrice("LASTPRICE") >= self.priceBought * (1 + self.TRADINGCOMMISSION):
                 amountToSell = self.amountBought
                 self.sell(amountToSell)
                 self.currentState = self.WAITINGSTATE
@@ -167,21 +172,22 @@ class FlipperV2:
 
     def buy(self,amount):
         buyHandler = bittrex.Bittrex(api_key=self.key, api_secret=self.secret,api_version=bittrex.API_V1_1)
-        response = buyHandler.buy_limit(self.market, amount,self.getPrice(ordertype="BUYING"))
+        response = buyHandler.buy_limit(self.market, amount, self.getPrice(ordertype="LASTPRICE"))
         return response
 
     def sell(self,amount):
         sellHandler = bittrex.Bittrex(api_key=self.key, api_secret=self.secret, api_version=bittrex.API_V1_1)
-        response = sellHandler.sell_limit(self.market, amount, self.getPrice(ordertype="SELLING"))
+        response = sellHandler.sell_limit(self.market, amount, self.getPrice(ordertype="LASTPRICE"))
         return response
 
     def isOrderComplete(self):
         openOrders = self.bittrexHandler.get_open_orders(self.market)
         if not openOrders['result']:
             return True
-        else:
+        if openOrders['result'][0]['Exchange'] == self.market:
             return False
-
+        else:
+            return True
 
 
 """

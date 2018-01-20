@@ -21,19 +21,19 @@ def show3():
 
 @app.route('/tasks/run1')
 def runBot1():
-    bot = FlipperBot.FlipperV2(market1, "dba4450039674e84a423f6bb28f60ba2", 0.0012, BuyMargin=35, SellMargin=65)
+    bot = FlipperBot.FlipperV2(market1, "dba4450039674e84a423f6bb28f60ba2", 0.003, BuyMargin=35, SellMargin=65)
     bot.run()
     return "OK"
 
 @app.route('/tasks/run2')
 def runBot2():
-    bot = FlipperBot.FlipperV2(market2, "dba4450039674e84a423f6bb28f60ba2", 0.0012, BuyMargin=35, SellMargin=65)
+    bot = FlipperBot.FlipperV2(market2, "dba4450039674e84a423f6bb28f60ba2", 0.003, BuyMargin=35, SellMargin=65)
     bot.run()
     return "OK"
 
 @app.route('/tasks/run3')
 def runBot3():
-    bot = FlipperBot.FlipperV2(market3, "dba4450039674e84a423f6bb28f60ba2", 0.0012, BuyMargin=35, SellMargin=65)
+    bot = FlipperBot.FlipperV2(market3, "dba4450039674e84a423f6bb28f60ba2", 0.003, BuyMargin=35, SellMargin=65)
     bot.run()
     return "OK"
 
