@@ -59,6 +59,7 @@ class FlipperV2:
     market = None
     priceBought = None
     amountBought = None
+    tradeUuid = None
 
     key = None
     secret = None
@@ -103,18 +104,21 @@ class FlipperV2:
                 self.priceBought = stateData["lastBought"]
                 self.previousState = stateData["previousState"]
                 self.amountBought = stateData["amountBought"]
+                self.tradeUuid = stateData["tradeUuid"]
         else:
             self.currentState = self.BUYINGSTATE
             self.priceBought = None
             self.previousState = None
             self.amountBought = None
+            self.tradeUuid = None
             self.writeStateJson()
 
     def writeStateJson(self):
         jsonData = {"state": self.currentState,
                     "previousState": self.previousState,
                     "lastBought": self.priceBought,
-                    "amountBought": self.amountBought}
+                    "amountBought": self.amountBought,
+                    "tradeUuid":self.tradeUuid}
 
         with open(self.JSONSTATE_NAME,'w') as jsonFile:
             json.dump(jsonData,jsonFile)
@@ -144,7 +148,8 @@ class FlipperV2:
             if rsiVal < self.BUYMARGIN:
                 self.priceBought = self.getPrice("LASTPRICE") * self.PRICEMULTIPLIER
                 self.amountBought = self.tradingAmount / self.priceBought
-                self.buy(self.amountBought)
+                response = self.buy(self.amountBought)
+                self.tradeUuid = response['result']['uuid']
                 self.currentState = self.WAITINGSTATE
                 self.previousState = self.BUYINGSTATE
                 self.myLogger.warning("Buying  " + str(self.amountBought) + " " + self.currencyTo)
@@ -152,7 +157,8 @@ class FlipperV2:
         elif self.currentState == self.SELLINGSTATE:
             if rsiVal > self.SELLMARGIN and self.getPrice("LASTPRICE") >= self.priceBought * (1 + self.TRADINGCOMMISSION):
                 amountToSell = self.amountBought
-                self.sell(amountToSell)
+                response = self.sell(amountToSell)
+                self.tradeUuid = response['result']['uuid']
                 self.currentState = self.WAITINGSTATE
                 self.previousState = self.SELLINGSTATE
                 self.myLogger.warning("selling  " + str(amountToSell) + " " + self.currencyTo)
@@ -166,6 +172,15 @@ class FlipperV2:
                 elif self.previousState == self.SELLINGSTATE:
                     self.currentState = self.BUYINGSTATE
                     self.previousState = self.WAITINGSTATE
+            else:
+                if self.previousState == self.BUYINGSTATE and rsiVal > self.BUYMARGIN:
+                    self.bittrexHandler.cancel(self.tradeUuid)
+                    self.previousState = None
+                    self.currentState = self.BUYINGSTATE
+                elif self.previousState == self.SELLINGSTATE and rsiVal <self.SELLINGSTATE:
+                    self.bittrexHandler.cancel(self.tradeUuid)
+                    self.previousState = None
+                    self.currentState = self.SELLINGSTATE
             self.myLogger.warning("waiting")
 
         self.writeStateJson()
@@ -190,6 +205,8 @@ class FlipperV2:
             return True
 
 
+
+
 """
     state json file structure
 {
@@ -197,7 +214,7 @@ class FlipperV2:
     previousState: prevState
     lastBought: price currency bought at
     amountBought:amount of currency bought
-    
+    tradeUuid:uuid of last trade
     
 }
 
