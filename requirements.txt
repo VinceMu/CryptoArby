@@ -8,7 +8,7 @@ glob2==0.5
 heapdict==1.0.0
 Jinja2==2.9.6
 jsonschema==2.6.0
-lxml==4.1.0
+lxml==4.6.2
 MarkupSafe==1.0
 matplotlib==2.1.0
 numexpr==2.6.2
