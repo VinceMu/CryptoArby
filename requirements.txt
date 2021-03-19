@@ -6,7 +6,7 @@ Flask-Cors==3.0.3
 gevent==1.2.2
 glob2==0.5
 heapdict==1.0.0
-Jinja2==2.9.6
+Jinja2==2.11.3
 jsonschema==2.6.0
 lxml==4.1.0
 MarkupSafe==1.0
