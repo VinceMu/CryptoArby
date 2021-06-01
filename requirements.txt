@@ -37,5 +37,5 @@ SQLAlchemy==1.1.13
 tables==3.4.2
 testpath==0.3.1
 typing==3.6.2
-urllib3==1.22
+urllib3==1.26.5
 
